@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Clett</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>body{font-family:system-ui;margin:2rem;}</style>
+  <script>
+    // Remove ?access_token=... from the URL after Outseta redirects here
+    (function(){
+      var u=new URL(location.href);
+      if(u.searchParams.has('access_token')){
+        history.replaceState(null,"",u.pathname);
+      }
+    })();
+  </script>
+</head>
+<body>
+  <h1>Welcome to Clett</h1>
+  <p>Login complete.</p>
+</body>
+</html>
