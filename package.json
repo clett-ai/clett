@@ -1,0 +1,14 @@
+{
+  "name": "clett-metabase-embed",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'no build step'",
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  }
+}
