@@ -1,4 +1,3 @@
-// middleware.ts
 import { NextResponse, NextRequest } from "next/server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 
@@ -22,14 +21,13 @@ export async function middleware(req: NextRequest) {
       email: (payload as any).email,
       role: (payload as any).role || "member",
     };
-
     const res = NextResponse.redirect(new URL("/chat", url));
     res.cookies.set("clett_session", JSON.stringify(session), {
       httpOnly: true,
       secure: true,
       sameSite: "none",
       path: "/",
-      domain: ".clett.ai",     // <-- THIS is the fix
+      domain: ".clett.ai",   // <-- makes cookie work on ask.clett.ai + my.clett.ai
       maxAge: 60 * 60,
     });
     return res;
