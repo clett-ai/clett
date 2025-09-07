@@ -1,4 +1,7 @@
-import { Pool } from "pg";
+// lib/db.ts
+import pg from "pg";
+
+const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: process.env.NEON_DATABASE_URL,

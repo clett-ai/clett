@@ -1,15 +1,17 @@
-module.exports = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: "/:path*",
         headers: [
           {
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://my.clett.ai https://*.webflow.io"
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self' https://my.clett.ai https://*.webflow.io",
           },
         ],
       },
     ];
   },
 };
+module.exports = nextConfig;
