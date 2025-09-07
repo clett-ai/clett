@@ -3,11 +3,18 @@ import 'server-only';
 import { neon } from '@neondatabase/serverless';
 import type { DataType } from './parsers';
 
-const sql = neon(process.env.NEON_DATABASE_URL!);
+// Lazily init the Neon client so builds don't require envs.
+let _sql: ReturnType<typeof neon> | null = null;
+function sql() {
+  const url = process.env.NEON_DATABASE_URL;
+  if (!url) throw new Error('NEON_DATABASE_URL is not set');
+  if (!_sql) _sql = neon(url);
+  return _sql;
+}
 
 // Create tables if they don't exist
 async function ensureTables() {
-  await sql`
+  await sql()`
     CREATE TABLE IF NOT EXISTS acct_ledger (
       tenant_id text,
       date date,
@@ -18,7 +25,7 @@ async function ensureTables() {
     );
   `;
 
-  await sql`
+  await sql()`
     CREATE TABLE IF NOT EXISTS sales_txn (
       tenant_id text,
       date date,
@@ -29,7 +36,7 @@ async function ensureTables() {
     );
   `;
 
-  await sql`
+  await sql()`
     CREATE TABLE IF NOT EXISTS mkt_perf (
       tenant_id text,
       date date,
@@ -44,8 +51,7 @@ async function ensureTables() {
 
 /**
  * Insert normalized rows into Postgres, scoped by tenant id.
- * Simpler, clear approach: per-row inserts using parameterized queries.
- * (We can optimize to bulk inserts later if needed.)
+ * Clear + safe parameterized inserts (can batch later if needed).
  */
 export async function loadRowsToNeon(
   rows: any[],
@@ -58,7 +64,7 @@ export async function loadRowsToNeon(
 
   if (dataType === 'accounting') {
     for (const r of rows) {
-      await sql`
+      await sql()`
         INSERT INTO acct_ledger
           (tenant_id, date, revenue, expenses, cash_in, cash_out)
         VALUES
@@ -70,7 +76,7 @@ export async function loadRowsToNeon(
 
   if (dataType === 'sales') {
     for (const r of rows) {
-      await sql`
+      await sql()`
         INSERT INTO sales_txn
           (tenant_id, date, order_id, customer_id, amount, currency)
         VALUES
@@ -82,7 +88,7 @@ export async function loadRowsToNeon(
 
   // marketing
   for (const r of rows) {
-    await sql`
+    await sql()`
       INSERT INTO mkt_perf
         (tenant_id, date, channel, campaign, spend, impressions, clicks)
       VALUES
