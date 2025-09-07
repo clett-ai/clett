@@ -1,0 +1,1 @@
+{ "compilerOptions": { "jsx": "preserve", "lib": ["dom","es2020"], "module": "esnext", "target": "es2020", "moduleResolution": "bundler", "strict": true, "baseUrl": ".", "paths": { "@/*": ["./*"] } }, "include": ["**/*.ts","**/*.tsx"] }
