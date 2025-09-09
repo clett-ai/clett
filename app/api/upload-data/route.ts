@@ -54,55 +54,67 @@ export async function POST(req: Request) {
     );
   }
 
-  // ---------- AUTH: cookie OR Outseta Bearer token ----------
-  const authHeader = req.headers.get('authorization') ?? '';
-  let tid: string | null = null;
+// ---------- AUTH: cookie OR Outseta Bearer token OR DEV key ----------
+const authHeader = req.headers.get('authorization') ?? '';
+let tid: string | null = null;
 
-  // 1) Cookie path
-  const session = await getSession(); // reads 'clett_session'
-  if (session?.tid) tid = session.tid;
+// 1) Cookie path (clett_session)
+const session = await getSession();
+if (session?.tid) tid = session.tid;
 
-  // 2) Bearer path (Outseta JWT)
-  if (!tid && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice('Bearer '.length);
-    try {
-      const { payload } = await jwtVerify(token, jwks, { algorithms: ['RS256'] });
-      tid =
-        (payload as any).TenantId ||
-        (payload as any)?.custom?.tenant_id ||
-        null;
-    } catch {
-      // ignore → fall through to 401 if tid still null
-    }
+// 2) Outseta JWT path (Bearer <token>)
+if (!tid && authHeader.startsWith('Bearer ')) {
+  const token = authHeader.slice('Bearer '.length);
+  try {
+    const { payload } = await jwtVerify(token, jwks, { algorithms: ['RS256'] });
+    tid = (payload as any).TenantId || (payload as any)?.custom?.tenant_id || null;
+  } catch {
+    // ignore, continue to DEV key check
   }
+}
 
-  if (!tid) {
-    return NextResponse.json(
-      { status: 'error', message: 'Unauthorized' },
-      { status: 401, headers: corsHeaders(origin) }
-    );
-  }
-  const tenantId = tid as string; // TS: assured non-null here
+// 3) DEV key path (Bearer <DEV_UPLOAD_KEY>)
+if (!tid && process.env.DEV_UPLOAD_KEY) {
+  const expected = `Bearer ${process.env.DEV_UPLOAD_KEY}`;
+  if (authHeader === expected) tid = 'dev-tenant';
+}
 
-  // ---------- read multipart form ----------
-  const form = await req.formData();
+if (!tid) {
+  return NextResponse.json(
+    { status: 'error', message: 'Unauthorized' },
+    { status: 401, headers: corsHeaders(origin) }
+  );
+}
 
-  const rawType = String(form.get('dataType') ?? '').toLowerCase();
-  if (!ALLOWED_TYPES.includes(rawType as AllowedType)) {
-    return NextResponse.json(
-      { status: 'error', message: 'Missing/invalid dataType' },
-      { status: 400, headers: corsHeaders(origin) }
-    );
-  }
-  const dataType = rawType as DataType;
+if (!tid) {
+  return NextResponse.json(
+    { status: 'error', message: 'Unauthorized' },
+    { status: 401, headers: corsHeaders(origin) }
+  );
+}
 
-  const file = form.get('file');
-  if (!(file instanceof File)) {
-    return NextResponse.json(
-      { status: 'error', message: 'file is required' },
-      { status: 400, headers: corsHeaders(origin) }
-    );
-  }
+const tenantId: string = tid as string;
+
+// ---------- read multipart form ----------
+const form = await req.formData();
+
+const rawType = String(form.get('dataType') ?? '').toLowerCase();
+if (!ALLOWED_TYPES.includes(rawType as AllowedType)) {
+  return NextResponse.json(
+    { status: 'error', message: 'Missing/invalid dataType' },
+    { status: 400, headers: corsHeaders(origin) }
+  );
+}
+const dataType = rawType as DataType;
+
+const file = form.get('file');
+if (!(file instanceof File)) {
+  return NextResponse.json(
+    { status: 'error', message: 'file is required' },
+    { status: 400, headers: corsHeaders(origin) }
+  );
+}
+
 
   // ---------- validation ----------
   const filename = file.name || 'upload';
