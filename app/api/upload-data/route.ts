@@ -9,12 +9,12 @@ import { jwtVerify, createRemoteJWKSet } from 'jose';
 
 export const runtime = 'nodejs';
 
-// Trust Outseta JWTs (same as middleware)
+// ---- Outseta JWKS (module-scope, created once)
 const jwks = createRemoteJWKSet(new URL(process.env.OUTSETA_JWKS_URL!));
 
 // ---- config
 const ALLOWED_TYPES = ['accounting', 'sales', 'marketing'] as const;
-type AllowedType = typeof ALLOWED_TYPES[number];
+type AllowedType = (typeof ALLOWED_TYPES)[number];
 
 const ALLOWED_EXTS = ['.csv', '.xlsx', '.json'] as const;
 const MAX_BYTES = 20 * 1024 * 1024; // 20MB
@@ -46,7 +46,7 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const origin = req.headers.get('origin') ?? undefined;
 
-  // Block unknown origins (still send CORS headers)
+  // Block unknown origins (still return CORS headers)
   if (origin && !ALLOWED_ORIGINS.has(origin)) {
     return NextResponse.json(
       { status: 'error', message: 'Origin not allowed' },
@@ -54,63 +54,55 @@ export async function POST(req: Request) {
     );
   }
 
-// ---------- AUTH: cookie OR Outseta Bearer token OR DEV key ----------
-const authHeader = req.headers.get('authorization') ?? '';
-let tid: string | null = null;
+  // ---------- AUTH: cookie OR Outseta Bearer token ----------
+  const authHeader = req.headers.get('authorization') ?? '';
+  let tid: string | null = null;
 
-// 1) Cookie path (clett_session)
-const session = await getSession();
-if (session?.tid) tid = session.tid;
+  // 1) Cookie path (clett_session)
+  const session = await getSession();
+  if (session?.tid) tid = session.tid;
 
-// 2) Outseta JWT path (Bearer <token>)
-if (!tid && authHeader.startsWith('Bearer ')) {
-  const token = authHeader.slice('Bearer '.length);
-  try {
-    const { payload } = await jwtVerify(token, jwks, { algorithms: ['RS256'] });
-    tid = (payload as any).TenantId || (payload as any)?.custom?.tenant_id || null;
-  } catch {
-    // ignore, continue to DEV key check
+  // 2) Outseta JWT path (Bearer <token>)
+  if (!tid && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice('Bearer '.length);
+    try {
+      const { payload } = await jwtVerify(token, jwks, { algorithms: ['RS256'] });
+      tid =
+        (payload as any).TenantId ||
+        (payload as any)?.custom?.tenant_id ||
+        null;
+    } catch {
+      // ignore – will 401 below if we still have no tid
+    }
   }
-}
 
+  if (!tid) {
+    return NextResponse.json(
+      { status: 'error', message: 'Unauthorized' },
+      { status: 401, headers: corsHeaders(origin) }
+    );
+  }
+  const tenantId = tid; // assured non-null here
 
+  // ---------- read multipart form ----------
+  const form = await req.formData();
 
-if (!tid) {
-  return NextResponse.json(
-    { status: 'error', message: 'Unauthorized' },
-    { status: 401, headers: corsHeaders(origin) }
-  );
-}
+  const rawType = String(form.get('dataType') ?? '').toLowerCase();
+  if (!ALLOWED_TYPES.includes(rawType as AllowedType)) {
+    return NextResponse.json(
+      { status: 'error', message: 'Missing/invalid dataType' },
+      { status: 400, headers: corsHeaders(origin) }
+    );
+  }
+  const dataType = rawType as DataType;
 
-if (!tid) {
-  return NextResponse.json(
-    { status: 'error', message: 'Unauthorized' },
-    { status: 401, headers: corsHeaders(origin) }
-  );
-}
-
-const tenantId: string = tid as string;
-
-// ---------- read multipart form ----------
-const form = await req.formData();
-
-const rawType = String(form.get('dataType') ?? '').toLowerCase();
-if (!ALLOWED_TYPES.includes(rawType as AllowedType)) {
-  return NextResponse.json(
-    { status: 'error', message: 'Missing/invalid dataType' },
-    { status: 400, headers: corsHeaders(origin) }
-  );
-}
-const dataType = rawType as DataType;
-
-const file = form.get('file');
-if (!(file instanceof File)) {
-  return NextResponse.json(
-    { status: 'error', message: 'file is required' },
-    { status: 400, headers: corsHeaders(origin) }
-  );
-}
-
+  const file = form.get('file');
+  if (!(file instanceof File)) {
+    return NextResponse.json(
+      { status: 'error', message: 'file is required' },
+      { status: 400, headers: corsHeaders(origin) }
+    );
+  }
 
   // ---------- validation ----------
   const filename = file.name || 'upload';
@@ -140,6 +132,7 @@ if (!(file instanceof File)) {
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
   });
+
   const key = `${dataType}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}${ext}`;
   await s3.send(
     new PutObjectCommand({
