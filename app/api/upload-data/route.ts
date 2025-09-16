@@ -1,10 +1,10 @@
 // app/api/upload-data/route.ts
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { getSession } from '@/lib/session';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { parseBufferToRows, type DataType } from '@/lib/ingest/parsers';
 import { loadRowsToNeon } from '@/lib/ingest/loaders';
-import crypto from 'node:crypto';
+import { randomUUID } from 'crypto';
 import { jwtVerify, createRemoteJWKSet } from 'jose';
 
 export const runtime = 'nodejs';
@@ -13,10 +13,10 @@ export const runtime = 'nodejs';
 const jwks = createRemoteJWKSet(new URL(process.env.OUTSETA_JWKS_URL!));
 
 // ---- config
-const ALLOWED_TYPES = ['accounting', 'sales', 'marketing'] as const;
+const ALLOWED_TYPES = ['accounting', 'sales', 'marketing'];
 type AllowedType = (typeof ALLOWED_TYPES)[number];
 
-const ALLOWED_EXTS = ['.csv', '.xlsx', '.json'] as const;
+const ALLOWED_EXTS = ['.csv', '.xlsx', '.json'];
 const MAX_BYTES = 20 * 1024 * 1024; // 20MB
 
 // ---- CORS
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
   // ---------- validation ----------
   const filename = file.name || 'upload';
   const ext = (filename.match(/\.[^.]+$/) || [''])[0].toLowerCase();
-  if (!(ALLOWED_EXTS as readonly string[]).includes(ext)) {
+  if (!ALLOWED_EXTS.includes(ext as any)) {
     return NextResponse.json(
       { status: 'error', message: 'Invalid file format' },
       { status: 400, headers: corsHeaders(origin) }
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     },
   });
 
-  const key = `${dataType}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}${ext}`;
+  const key = `${dataType}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${ext}`;
   await s3.send(
     new PutObjectCommand({
       Bucket: bucket,
