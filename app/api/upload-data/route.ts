@@ -10,7 +10,9 @@ import { jwtVerify, createRemoteJWKSet } from 'jose';
 export const runtime = 'nodejs';
 
 // ---- Outseta JWKS (module-scope, created once)
-const jwks = createRemoteJWKSet(new URL(process.env.OUTSETA_JWKS_URL!));
+const jwks = process.env.OUTSETA_JWKS_URL 
+  ? createRemoteJWKSet(new URL(process.env.OUTSETA_JWKS_URL))
+  : null;
 
 // ---- config
 const ALLOWED_TYPES = ['accounting', 'sales', 'marketing'];
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
   if (session?.tid) tid = session.tid;
 
   // 2) Outseta JWT path (Bearer <token>)
-  if (!tid && authHeader.startsWith('Bearer ')) {
+  if (!tid && authHeader.startsWith('Bearer ') && jwks) {
     const token = authHeader.slice('Bearer '.length);
     try {
       const { payload } = await jwtVerify(token, jwks, { algorithms: ['RS256'] });

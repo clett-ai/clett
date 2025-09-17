@@ -1,7 +1,9 @@
 import { NextResponse, NextRequest } from "next/server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 
-const jwks = createRemoteJWKSet(new URL(process.env.OUTSETA_JWKS_URL!));
+const jwks = process.env.OUTSETA_JWKS_URL 
+  ? createRemoteJWKSet(new URL(process.env.OUTSETA_JWKS_URL))
+  : null;
 
 export async function middleware(req: NextRequest) {
   const url = new URL(req.url);
@@ -12,6 +14,10 @@ export async function middleware(req: NextRequest) {
 
   const token = url.searchParams.get("token");
   if (!token) return new NextResponse("Unauthorized", { status: 401 });
+
+  if (!jwks) {
+    return new NextResponse("JWT verification not configured", { status: 500 });
+  }
 
   try {
     const { payload } = await jwtVerify(token, jwks, { algorithms: ["RS256"] });
