@@ -78,6 +78,12 @@ export async function POST(req: Request) {
     }
   }
 
+  // 3) DEV key path (Bearer <DEV_UPLOAD_KEY>)
+  if (!tid && process.env.DEV_UPLOAD_KEY) {
+    const expected = `Bearer ${process.env.DEV_UPLOAD_KEY}`;
+    if (authHeader === expected) tid = 'dev-tenant';
+  }
+
   if (!tid) {
     return NextResponse.json(
       { status: 'error', message: 'Unauthorized' },
