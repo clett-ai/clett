@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html, body, #__next {
+  height: 100%;
+}
+
+/* Prose for markdown */
+.prose pre {
+  @apply bg-muted p-4 rounded-md overflow-x-auto;
+}
+
+.prose code {
+  @apply text-sm;
+}
+
